@@ -1,4 +1,4 @@
-import SwiftUICore
+import SwiftUI
 import Testing
 @testable import Trio_Watch_App
 import XCTest
@@ -20,6 +20,102 @@ import XCTest
         #expect(blackHex.toColor() == Color.black)
         #expect(redHex.toColor() == Color(red: 1, green: 0, blue: 0))
         #expect(invalidHex.toColor() == Color.black)
+    }
+
+    // MARK: - Direction Enum Tests
+
+    @Test("Direction raw value and unicode symbol initialization") func testDirectionInitialization() throws {
+        // Direct raw value initialization
+        #expect(TrendDirection(from: "Flat") == .flat)
+        #expect(TrendDirection(from: "FortyFiveUp") == .fortyFiveUp)
+        #expect(TrendDirection(from: "SingleUp") == .singleUp)
+        #expect(TrendDirection(from: "DoubleUp") == .doubleUp)
+        #expect(TrendDirection(from: "TripleUp") == .tripleUp)
+        #expect(TrendDirection(from: "FortyFiveDown") == .fortyFiveDown)
+        #expect(TrendDirection(from: "SingleDown") == .singleDown)
+        #expect(TrendDirection(from: "DoubleDown") == .doubleDown)
+        #expect(TrendDirection(from: "TripleDown") == .tripleDown)
+
+        // Symbol-based initialization
+        #expect(TrendDirection(from: "→") == .flat)
+        #expect(TrendDirection(from: "↗") == .fortyFiveUp)
+        #expect(TrendDirection(from: "↑") == .singleUp)
+        #expect(TrendDirection(from: "↑↑") == .doubleUp)
+        #expect(TrendDirection(from: "↑↑↑") == .tripleUp)
+        #expect(TrendDirection(from: "↘") == .fortyFiveDown)
+        #expect(TrendDirection(from: "↓") == .singleDown)
+        #expect(TrendDirection(from: "↓↓") == .doubleDown)
+        #expect(TrendDirection(from: "↓↓↓") == .tripleDown)
+
+        // Symbol property mapping
+        #expect(TrendDirection.flat.symbol == "→")
+        #expect(TrendDirection.fortyFiveUp.symbol == "↗")
+        #expect(TrendDirection.singleUp.symbol == "↑")
+        #expect(TrendDirection.doubleUp.symbol == "↑↑")
+        #expect(TrendDirection.tripleUp.symbol == "↑↑↑")
+        #expect(TrendDirection.none.symbol == "")
+        #expect(TrendDirection.notComputable.symbol == "")
+        #expect(TrendDirection.rateOutOfRange.symbol == "")
+
+        // Empty and invalid string handling
+        #expect(TrendDirection(from: "") == nil)
+        #expect(TrendDirection(from: "unknown_value") == nil)
+    }
+
+    // MARK: - Complication Data Model Tests
+
+    @Test("ComplicationGlucose freshness and staleness calculation") func testComplicationGlucoseStaleness() throws {
+        let now = Date()
+        let freshComplication = ComplicationGlucose(
+            currentGlucose: "115",
+            currentGlucoseColorString: "#00ff00",
+            trend: "Flat",
+            date: now
+        )
+        #expect(!freshComplication.isStale)
+        #expect(freshComplication.direction == .flat)
+        #expect(freshComplication.trendArrow == "→")
+        #expect(freshComplication.staleDate == now.addingTimeInterval(15 * 60))
+
+        let staleComplication = ComplicationGlucose(
+            currentGlucose: "115",
+            currentGlucoseColorString: "#00ff00",
+            trend: "Flat",
+            date: now.addingTimeInterval(-16 * 60)
+        )
+        #expect(staleComplication.isStale)
+        #expect(staleComplication.direction == nil)
+        #expect(staleComplication.trendArrow == "")
+
+        let emptyComplication = ComplicationGlucose.empty
+        #expect(emptyComplication.isStale)
+        #expect(emptyComplication.currentGlucose == "--")
+        #expect(emptyComplication.trendArrow == "")
+    }
+
+    @Test("ComplicationGlucose dictionary initializer") func testComplicationGlucoseDictionaryInit() throws {
+        let validPayload: [String: Any] = [
+            WatchMessageKeys.currentGlucose: "135",
+            WatchMessageKeys.currentGlucoseColorString: "#00ff00",
+            WatchMessageKeys.trend: "FortyFiveUp",
+            WatchMessageKeys.date: Date().timeIntervalSince1970
+        ]
+        let complication = ComplicationGlucose(watchStateDictionary: validPayload)
+        #expect(complication != nil)
+        #expect(complication?.currentGlucose == "135")
+        #expect(complication?.currentGlucoseColorString == "#00ff00")
+        #expect(complication?.trend == "FortyFiveUp")
+        #expect(complication?.direction == .fortyFiveUp)
+        #expect(complication?.trendArrow == "↗")
+
+        // Payload with placeholder dashes should be rejected
+        let invalidPayload: [String: Any] = [
+            WatchMessageKeys.currentGlucose: "--"
+        ]
+        #expect(ComplicationGlucose(watchStateDictionary: invalidPayload) == nil)
+
+        // Empty dictionary should be rejected
+        #expect(ComplicationGlucose(watchStateDictionary: [:]) == nil)
     }
 
     // MARK: - WatchState Tests

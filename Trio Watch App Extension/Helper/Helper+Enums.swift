@@ -67,3 +67,51 @@ enum WatchSize {
         }
     }
 }
+
+// MARK: - Trend Conversion
+
+/// Map trend value string representations of trend to unicode arrows
+enum TrendDirection: String, CaseIterable {
+    case tripleUp = "TripleUp"
+    case doubleUp = "DoubleUp"
+    case singleUp = "SingleUp"
+    case fortyFiveUp = "FortyFiveUp"
+    case flat = "Flat"
+    case fortyFiveDown = "FortyFiveDown"
+    case singleDown = "SingleDown"
+    case doubleDown = "DoubleDown"
+    case tripleDown = "TripleDown"
+    case none = "NONE"
+    case notComputable = "NOT COMPUTABLE"
+    case rateOutOfRange = "RATE OUT OF RANGE"
+
+    /// Maps direction to its visual arrow representation
+    var symbol: String {
+        switch self {
+        case .tripleUp: return "↑↑↑"
+        case .doubleUp: return "↑↑"
+        case .singleUp: return "↑"
+        case .fortyFiveUp: return "↗"
+        case .flat: return "→"
+        case .fortyFiveDown: return "↘"
+        case .singleDown: return "↓"
+        case .doubleDown: return "↓↓"
+        case .tripleDown: return "↓↓↓"
+        case .none,
+             .notComputable,
+             .rateOutOfRange: return ""
+        }
+    }
+
+    /// Flexible initializer that handles raw values (e.g. "FortyFiveUp") as well as arrow symbols (e.g. "↗")
+    init?(from string: String) {
+        guard !string.isEmpty else { return nil }
+        if let directMatch = TrendDirection(rawValue: string) {
+            self = directMatch
+        } else if let symbolMatch = TrendDirection.allCases.first(where: { !$0.symbol.isEmpty && $0.symbol == string }) {
+            self = symbolMatch
+        } else {
+            return nil
+        }
+    }
+}

@@ -115698,7 +115698,11 @@
         }
       }
     },
+    "Displays the most recent blood glucose value and trend." : {
+
+    },
     "Displays Trio app icon as complication" : {
+      "extractionState" : "stale",
       "localizations" : {
         "bg" : {
           "stringUnit" : {
@@ -320878,6 +320882,9 @@
           }
         }
       }
+    },
+    "Trio Glucose" : {
+
     },
     "Trio has not looped in %lld minutes." : {
       "localizations" : {

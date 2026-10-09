@@ -604,7 +604,31 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
             session.transferUserInfo([WatchMessageKeys.watchState: message])
             debug(.watchManager, "📤 Transferred new WatchState snapshot via userInfo")
         }
+
+        // Send high-priority complication update if enabled
+        sendComplicationUpdate(for: state, session: session)
         WatchStateSnapshot.saveLatestDateToDisk(state.date)
+    }
+
+    /// Sends a lightweight complication update payload via transferCurrentComplicationUserInfo
+    private func sendComplicationUpdate(for state: WatchState, session: WCSession) {
+        guard session.isComplicationEnabled else { return }
+        guard let glucose = state.currentGlucose, glucose != "--" else { return }
+
+        let glucoseColorString = state.currentGlucoseColorString ?? "#ffffff"
+        let trend = state.trend ?? ""
+        let date = state.date.timeIntervalSince1970
+
+        session.transferCurrentComplicationUserInfo([
+            WatchMessageKeys.currentGlucose: glucose,
+            WatchMessageKeys.currentGlucoseColorString: glucoseColorString,
+            WatchMessageKeys.trend: trend,
+            WatchMessageKeys.date: date
+        ])
+        debug(
+            .watchManager,
+            "📤 Transferred complication data via transferCurrentComplicationUserInfo (remaining: \(session.remainingComplicationUserInfoTransfers))"
+        )
     }
 
     func sendAcknowledgment(toWatch success: Bool, message: String = "", ackCode: AcknowledgmentCode) {

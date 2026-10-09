@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import WatchConnectivity
+import WidgetKit
 
 /// WatchState manages the communication between the Watch app and the iPhone app using WatchConnectivity.
 /// It handles glucose data synchronization and sending treatment requests (bolus, carbs) to the phone.
@@ -224,8 +225,35 @@ import WatchConnectivity
         handleIncomingWatchStatePayload(message)
     }
 
+    /// Updates shared complication storage and requests WidgetKit to reload timelines
+    private func updateComplication(_ complication: ComplicationGlucose) {
+        guard complication.currentGlucose != "--" else { return }
+        if complication.isStale {
+            return
+        }
+        WatchComplicationData.save(complication)
+        WidgetCenter.shared.reloadTimelines(ofKind: "TrioWatchComplication")
+    }
+
+    /// Handles updates to the complication when user info was received in the background
     func session(_: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        handleIncomingWatchStatePayload(userInfo)
+        Task {
+            await WatchLogger.shared.log("⌚️ Received UserInfo.")
+        }
+
+        // Case 1: Dedicated complication update (from transferCurrentComplicationUserInfo)
+        if let complication = ComplicationGlucose(watchStateDictionary: userInfo) {
+            updateComplication(complication)
+            return
+        }
+
+        // Case 2: Full watchState payload (from transferUserInfo([WatchMessageKeys.watchState: message]))
+        if let payload = userInfo[WatchMessageKeys.watchState] as? [String: Any] {
+            if let complication = ComplicationGlucose(watchStateDictionary: payload) {
+                updateComplication(complication)
+            }
+            handleIncomingWatchStatePayload(userInfo)
+        }
     }
 
     /// Shared path for watch-state payloads from either delegate method.
@@ -431,6 +459,16 @@ import WatchConnectivity
         // Actually set your main UI properties here
         processRawDataForWatchState(pendingData)
 
+        // Update complication storage and reload timeline
+        let readingDate = lastWatchStateUpdate.map { Date(timeIntervalSince1970: $0) } ?? Date()
+        let complication = ComplicationGlucose(
+            currentGlucose: currentGlucose,
+            currentGlucoseColorString: currentGlucoseColorString,
+            trend: trend ?? "",
+            date: readingDate
+        )
+        updateComplication(complication)
+
         // Clear
         pendingData.removeAll()
 
@@ -584,5 +622,26 @@ import WatchConnectivity
             forecastConeMax = forecastPayload[WatchMessageKeys.forecastConeMax] as? [Double] ?? []
             forecastLines = forecastPayload[WatchMessageKeys.forecastLines] as? [String: [Double]] ?? [:]
         }
+    }
+}
+
+// MARK: - Complication Glucose Payload Mapping
+
+extension ComplicationGlucose {
+    init?(watchStateDictionary: [String: Any]) {
+        guard let glucose = watchStateDictionary[WatchMessageKeys.currentGlucose] as? String,
+              glucose != "--", !glucose.isEmpty
+        else {
+            return nil
+        }
+        let color = watchStateDictionary[WatchMessageKeys.currentGlucoseColorString] as? String ?? "#ffffff"
+        let trend = watchStateDictionary[WatchMessageKeys.trend] as? String ?? ""
+        let timestamp = watchStateDictionary[WatchMessageKeys.date] as? TimeInterval ?? Date().timeIntervalSince1970
+        self.init(
+            currentGlucose: glucose,
+            currentGlucoseColorString: color,
+            trend: trend,
+            date: Date(timeIntervalSince1970: timestamp)
+        )
     }
 }
